@@ -1,0 +1,85 @@
+    Simplified Features Overview – ISE System
+    🚘 Daily Vehicle Operations
+    Pre-Trip Check: Drivers log odometer, do a checklist, and report issues.
+
+    Real-Time Monitoring: Tracks vehicle status and sends alerts if something’s wrong.
+
+    Post-Trip Report: Drivers enter final readings and report trip issues.
+
+    Auto-Maintenance Scheduling: System schedules checkups based on mileage, time, or part conditions.
+
+    👥 User Roles & Core Responsibilities
+    🛠️ System Admin
+
+    Manages users, roles, settings, backups, and full system controls.
+
+    Handles master data like vehicles, parts, vendors, and system rules.
+
+    Views audit logs and system reports.
+
+    🚐 Fleet Manager
+
+    Monitors overall vehicle status and usage.
+
+    Plans vehicle replacements, expansion, and costs.
+
+    Tracks fleet performance, vendors, and route efficiency.
+
+    🔧 Maintenance Manager
+
+    Manages repair schedules, work orders, and technician tasks.
+
+    Monitors parts inventory and maintenance history.
+
+    Ensures preventive and predictive maintenance is on track.
+
+    👨‍🔧 Technician / Mechanic
+
+    Views assigned tasks and repair details.
+
+    Runs diagnostics, logs repairs, and updates part usage.
+
+    Uses mobile tools to document work with photos/notes.
+
+    🧑‍✈️ Driver
+
+    Views vehicle assignments and trip schedules.
+
+    Completes pre/post trip inspections.
+
+    Reports issues and confirms trip completions.
+
+    📋 Operations Supervisor
+
+    Oversees vehicle movement and driver status.
+
+    Manages daily routes, emergencies, and real-time tracking.
+
+    Ensures compliance, safety, and driver certification.
+
+    🔧 Core Functional Modules
+    Vehicle Management
+
+    Register and track vehicle details, insurance, GPS, and fuel use.
+
+    Maintenance Management
+
+    Automated schedules, parts replacement tracking, and emergency handling.
+
+    Inventory Control
+
+    Manage parts stock, monitor levels, reorder automatically, and track costs.
+
+    Reports & Analytics
+
+    View trends for maintenance, fuel, drivers, and costs.
+
+    Mobile Access
+
+    Apps for drivers and technicians with offline support and live alerts.
+
+    Integration Ready
+
+    Connects with GPS, accounting, fuel card, and booking systems.
+
+    🔄 How the Data Moves

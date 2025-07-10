@@ -1,0 +1,43 @@
+Driver 
+
+-Fullname
+-Date of Birth
+-Employee ID Number
+-Address
+-Contact Number
+-Email
+-Driver Lisence expiration
+-Driver Lisence Number
+-Password
+
+
+Admin
+
+-Username
+-Password
+
+(Insert this Greg, pass:12345Greg)
+
+Maintenance Manager / Mechanic
+
+-Fullname
+-Date of Birth
+-Contact Number
+-Email
+-Username
+-Password
+
+Vechile list
+
+-Brand Model
+-Year of purchase
+-Plate number
+
+Vechile parts - (this is for like inventory/ lifespan of vehicle parts)
+
+-Parts name
+- purchase date
+- installed date
+
+[Add if anything I missed]
+
