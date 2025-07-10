@@ -6,3 +6,6 @@ RewriteCond %{REQUEST_FILENAME}\.php -f
 RewriteRule ^([^\.]+)$ $1.php [NC,L]
 
 test add
+
+
+change from git hub
