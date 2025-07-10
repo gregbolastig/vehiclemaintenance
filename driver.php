@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
+      zoom:1.2;
       font-family: 'Inter', sans-serif;
       background-color: #f5f5f5;
       display: flex;
@@ -153,61 +154,79 @@
       border-top: 1px solid #ddd;
       margin: 20px 0;
     }
+    
     .sidebar {
-  position: fixed;
-  top: 0;
-  left: -250px;
-  width: 220px;
-  height: 100%;
-  background-color: #2f9e44;
-  color: #fff;
-  padding: 20px 15px;
-  transition: left 0.3s ease-in-out;
-  z-index: 1000;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-}
+      position: fixed;
+      top: 0;
+      left: -250px;
+      width: 220px;
+      height: 100%;
+      background-color: white;
+      color: #2f9e44;
+      padding: 20px 15px;
+      transition: left 0.3s ease-in-out;
+      z-index: 1000;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
 
-.sidebar-footer {
-  position: absolute;
-  bottom: 15px;
-  left: 0;
-  width: 100%;
+    .sidebar-logo {
+      text-align: center;
+      margin-bottom: 20px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo img {
+      width: 100px;
+      max-width: 80%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+    }
+
+    .sidebar-footer {
+      flex-shrink: 0;
+      margin-top: auto;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(30, 30, 30, 0.64);
+      padding: 100px 0;
+      border-top: 1px solid rgba(63, 61, 61, 0.2);
+    } 
+
+    .sidebar.active {
+      left: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      color: #2f9e44;
+      padding: 10px 0;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .sidebar a:hover {
+      background-color:rgba(180, 185, 181, 0.28);
+      color: #299149;
+    }
+
+    .sidebar a i {
+  margin-right: 10px;
+  width: 16px;
   text-align: center;
-  font-size: 12px;
-  color: #ccc;
-  padding: 10px 0;
-}
-
-.sidebar.active {
-  left: 0;
-}
-
-.sidebar a {
-  display: block;
-  color: #fff;
-  padding: 10px 0;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-.sidebar-logo {
-  text-align: center;
-  
-  margin-bottom: 20px;
-}
-
-.sidebar-logo img {
-  width: 100px; /* Adjust for your design */
-  max-width: 80%;
-  background-color: white;
-  height: auto;
-  border-radius: 8px; /* Optional for rounded style */
-}
-
-
-.sidebar a:hover {
-  background-color: #276c34;
 }
 
 .overlay {
@@ -224,6 +243,9 @@
 .overlay.active {
   display: block;
 }
+button:active {
+  transform: scale(0.98);
+}
 
      @media (max-width: 768px) {
         body {
@@ -233,7 +255,7 @@
     .container {
       width: 360px;
       background-color: #fff;
-      padding: 25px 5px 5px 5px;
+      padding: 5px 5px 5px 5px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0);
       min-height: 100vh;
     }
@@ -245,12 +267,14 @@
   <div class="sidebar-logo">
     <img src="img/logo1.png" alt="Company Logo">
   </div>
-  <a href="driver">Home</a>
-  <a href="new_route">New Route</a>
-  <a href="#">History</a>
-  <a href="#">Report Problem</a>
-  <br><br>
-  <a href="#">Logout</a>
+<a href="driver"><i class="fas fa-home"></i> Home</a>
+<a href="new_route"><i class="fas fa-plus"></i> New Route</a>
+<a href="driver_history"><i class="fas fa-history"></i> History</a>
+<a href="report_vehicle_issue"><i class="fas fa-exclamation-triangle"></i> Report Vehicle Issue</a>
+
+<a href="index"><i class="fas fa-sign-out-alt"></i> Logout</a>
+<br><br>
+<a href="#"><i class="fas fa-info-circle"></i> Report System Issue</a>
 
   <div class="sidebar-footer">
     All rights reserved © <span id="current-year"></span>
@@ -276,7 +300,7 @@
 
     <div class="buttons">
       <button class="btn new-route" onclick="window.location.href='new_route'"><i class="fas fa-plus"></i> New Route</button>
-      <button class="btn report-problem"><i class="fas fa-exclamation-triangle"></i> Report Problem</button>
+      <button class="btn report-problem" onclick="window.location.href='report_vehicle_issue'"><i class="fas fa-exclamation-triangle"></i> Report Problem</button>
     </div>
 
     <div class="section">

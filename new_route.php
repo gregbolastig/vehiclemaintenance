@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
+      zoom:1.2;
       font-family: 'Inter', sans-serif;
       background-color: #f5f5f5;
       display: flex;
@@ -80,7 +81,7 @@
     .section {
       background: #f2f2f2;
       border-radius: 10px;
-      padding: 10px;
+      padding: 20px;
       margin-bottom: 10px;
     }
     .section i {
@@ -198,6 +199,7 @@
 
     .submit-btn:hover {
       background-color: #268a3c;
+      transform: scale(0.98);
     }
 
     .sidebar {
@@ -206,8 +208,8 @@
       left: -250px;
       width: 220px;
       height: 100%;
-      background-color: #2f9e44;
-      color: #fff;
+      background-color: white;
+      color: #2f9e44;
       padding: 20px 15px;
       transition: left 0.3s ease-in-out;
       z-index: 1000;
@@ -226,7 +228,6 @@
     .sidebar-logo img {
       width: 100px;
       max-width: 80%;
-      background-color: white;
       height: auto;
       border-radius: 8px;
     }
@@ -241,33 +242,38 @@
       flex: 1;
     }
 
-    .sidebar-footer {
-      flex-shrink: 0;
-      margin-top: auto;
-      text-align: center;
-      font-size: 12px;
-      color: #ccc;
-      padding: 15px 0;
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
-    }
+.sidebar-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(30, 30, 30, 0.64);
+  padding: 100px 0;
+  border-top: 1px solid rgba(63, 61, 61, 0.2);
+}
 
     .sidebar.active {
       left: 0;
     }
 
-    .sidebar a {
-      display: block;
-      color: #fff;
-      padding: 10px 0;
-      text-decoration: none;
-      font-weight: 500;
-      font-size: 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
+.sidebar a {
+  display: block;
+  color: #2f9e44;
+  padding: 10px 0;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13px;
+}
 
-    .sidebar a:hover {
-      background-color: #276c34;
-    }
+.sidebar a:hover {
+  background-color: rgba(180, 185, 181, 0.28);
+  color: #299149;
+}
+.sidebar a i {
+  margin-right: 10px;
+  width: 16px;
+  text-align: center;
+}
 
     .overlay {
       position: fixed;
@@ -284,50 +290,53 @@
       display: block;
     }
 
-    @media (max-width: 768px) {
-      body {
-        background-color: #fff;
-      }
-      .container {
-        width: 360px;
-        background-color: #fff;
-        padding: 25px 5px 5px 5px;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0);
-        min-height: 100vh;
-      }
-      
-      .sidebar {
-        height: 100vh;
-        height: 100dvh; /* Dynamic viewport height for mobile */
-        overflow-y: auto;
-      }
-      
-      .sidebar-footer {
-        font-size: 11px;
-        padding: 10px 0;
-      }
-    }
+    .report-problem {
+  display: inline-block;
+  background-color:#a8432f;
+  color: white;
 
-    /* Additional mobile-specific adjustments */
-    @media (max-height: 600px) {
-      .sidebar-logo {
-        margin-bottom: 15px;
-      }
-      
-      .sidebar-logo img {
-        width: 80px;
-      }
-      
-      .sidebar a {
-        padding: 8px 0;
-        font-size: 15px;
-      }
-      
-      .sidebar-footer {
-        font-size: 10px;
-        padding: 8px 0;
-      }
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 4px 10px rgba(255, 77, 79, 0.3);
+}
+
+.report-problem i {
+  margin-right: 6px;
+}
+
+.report-problem:hover {
+  background-color: #a8432f;
+  transform: translateY(-2px);
+}
+i:hover {
+  transform: translateY(-2px);
+}
+#bars:hover {
+  transform: translateY(-10px);
+}
+
+.report-problem:active {
+  transform: scale(0.98);
+}
+
+     @media (max-width: 768px) {
+        body {
+            background-color: #fff;
+            
+        }
+    .container {
+      width: 360px;
+      background-color: #fff;
+      padding: 5px 5px 5px 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0);
+      min-height: 100vh;
     }
+        }
   </style>
 </head>
 <body>
@@ -335,28 +344,26 @@
   <div class="sidebar-logo">
     <img src="img/logo1.png" alt="Company Logo">
   </div>
-  
-  <div class="sidebar-content">
-    <div class="sidebar-nav">
-      <a href="driver">Home</a>
-      <a href="new_route">New Route</a>
-      <a href="#">History</a>
-      <a href="#">Report Problem</a>
-      <br><br>
-      <a href="#">Logout</a>
-    </div>
-    
-    <div class="sidebar-footer">
-      All rights reserved © <span id="current-year"></span>
-    </div>
+<a href="driver"><i class="fas fa-home"></i> Home</a>
+<a href="new_route"><i class="fas fa-plus"></i> New Route</a>
+<a href="driver_history"><i class="fas fa-history"></i> History</a>
+<a href="report_vehicle_issue"><i class="fas fa-exclamation-triangle"></i> Report Vehicle Issue</a>
+
+<a href="index"><i class="fas fa-sign-out-alt"></i> Logout</a>
+<br><br>
+<a href="#"><i class="fas fa-info-circle"></i> Report System Issue</a>
+
+  <div class="sidebar-footer">
+    All rights reserved © <span id="current-year"></span>
   </div>
 </div>
+      
 
 <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
   <div class="container">
     <div class="header">
-      <i class="fas fa-bars" onclick="toggleSidebar()"></i>
+      <i class="fas fa-bars" id="bars" onclick="toggleSidebar()"></i>
       NEW ROUTE
     </div>
 
@@ -368,18 +375,24 @@
     </div>  
 <br>
     <div class="section">
-        <i class="fas fa-arrow-left" onclick="window.location.href='driver'"></i>
+        <i class="fas fa-arrow-left" onclick="history.back(); return false;"></i>
       <div class="section-title">Vehicle Details</div>
+
+      <div class="form-group">
+        <label>Plate no.</label>
+        <input type="text" placeholder="// ex. ABG6556 (no spacing)" />
+      </div>
 
       <div class="form-group">
         <label>Model</label>
         <input type="text" placeholder="// ex. Toyota HI-ACE" />
       </div>
-      
+
       <div class="form-group">
-        <label>Plate no.</label>
-        <input type="text" placeholder="// follow this format: ABC-6556" />
+        <label>Body no.</label>
+        <input type="text" placeholder="// enter chassis no." />
       </div>
+      
       
       <div class="form-group">
         <label>Start Odometer Reading (km)</label>
@@ -388,7 +401,7 @@
       
       <div class="form-group">
         <label>Time and Date (automatic)</label>
-        <input type="text" placeholder="// Automatic (uneditable)" disabled />
+        <input style="color:black;" type="text" placeholder="// Automatic (uneditable)" disabled />
       </div>
 <br>
 <div class="checklist-title">Vehicle Inspection Checklist</div>
@@ -396,34 +409,59 @@
         
         <div class="checklist">
           <div class="checkbox-item">
-            <input type="checkbox" id="exterior" />
-            <label for="exterior">Exterior Condition</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="tires" />
-            <label for="tires">Tires & Pressure</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="brake" />
-            <label for="brake">Brake System</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="mirrors" />
-            <label for="mirrors">Mirrors & Windows</label>
+            <input type="checkbox" id="battery" />
+            <label for="battery"><i class="fas fa-battery-full"></i> Battery</label>
           </div>
           <div class="checkbox-item">
             <input type="checkbox" id="lights" />
-            <label for="lights">Lights & Signals</label>
+            <label for="lights"><i class="fas fa-lightbulb"></i> Lights</label>
           </div>
           <div class="checkbox-item">
-            <input type="checkbox" id="fluid" />
-            <label for="fluid">Fluid Levels</label>
+            <input type="checkbox" id="oil" />
+            <label for="oil"><i class="fas fa-oil-can"></i> Oil</label>
           </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="water" />
+            <label for="water"><i class="fas fa-tint"></i> Water</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="brakes" />
+            <label for="brakes"><i class="fas fa-hand-paper"></i> Brakes</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="air" />
+            <label for="air"><i class="fas fa-wind"></i> Air</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="gas" />
+            <label for="gas"><i class="fas fa-gas-pump"></i> Gas</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="engine" />
+            <label for="engine"><i class="fas fa-gears"></i> Engine</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="tires" />
+            <label for="tires"><i class="fas fa-compact-disc"></i> Tires</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="self" />
+            <label for="self"><i class="fas fa-user-check"></i> Self</label>
+          </div>
+          
         </div>
       </div>
-
+      <div class="form-group">
+        <label>Remarks:</label>
+        <input type="text" placeholder="// leave blank if none" />
+      </div>
       <button class="submit-btn">SUBMIT</button>
-    </div><br><br><br><br>
+<div style="text-align:center; margin-top: 30px;">
+  <p style="font-size: 12px; color: #333; margin-bottom: 10px;">Found problem in vehicle?</p>
+  <button class="btn report-problem" onclick="window.location.href='report_vehicle_issue'"><i class="fas fa-exclamation-triangle" style="color: white;"></i>send report</button>
+</div>
+
+    </div><br><br>
   </div>
 
   <script>
