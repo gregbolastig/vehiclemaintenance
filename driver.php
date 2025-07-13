@@ -300,7 +300,7 @@ button:active {
 
     <div class="buttons">
       <button class="btn new-route" onclick="window.location.href='new_route'"><i class="fas fa-plus"></i> New Route</button>
-      <button class="btn report-problem" onclick="window.location.href='report_vehicle_issue'"><i class="fas fa-exclamation-triangle"></i> Report Problem</button>
+      <button class="btn report-problem"   onclick="window.location.href='report_vehicle_issue'"><i class="fas fa-exclamation-triangle"></i> Report Problem</button>
     </div>
 
     <div class="section">

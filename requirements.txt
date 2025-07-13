@@ -1,43 +1,68 @@
-Driver 
+driver:
 
--Fullname
--Date of Birth
--Employee ID Number
--Address
--Contact Number
--Email
--Driver Lisence expiration
--Driver Lisence Number
--Password
+Firstname
+Middlename
+Lastname
+Employee no.
+DateofBirth
+Age
+EmailAdd
+ContactNumber
+Address
+Driver License number
+Driver License Expiration
+Password
+
+Supervisor:
+
+Firstname
+Middlename
+Lastname
+Email
+ContactNumber
+Password
+
+Vehicle:
+Vehicle Location
+Platenumber
+Model
+Body no. / Chassis number
+
+Odometer Readings:
+Plate No.
+Model 
+Odometer 
+Time and Date
 
 
-Admin
+Route:
+Driver name
+Plate No. 
+Body No.
+Model.
+Start Odo
+Time and Date of Start Odo
+End Odo
+Time and Date of End Odo
 
--Username
--Password
 
-(Insert this Greg, pass:12345Greg)
+Vehicle Report Problem:
+Title
+Discription
+Plate No.
+Body No.
+Model
+Odometer
+Time and Date
 
-Maintenance Manager / Mechanic
 
--Fullname
--Date of Birth
--Contact Number
--Email
--Username
--Password
+Maintenance History:
+Plate no.
+Model
+Chassis no.
+Installed parts
+Installed date
+Specs of installed parts
+Time and Date
 
-Vechile list
-
--Brand Model
--Year of purchase
--Plate number
-
-Vechile parts - (this is for like inventory/ lifespan of vehicle parts)
-
--Parts name
-- purchase date
-- installed date
-
-[Add if anything I missed]
 

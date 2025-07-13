@@ -1,9 +1,63 @@
+<?php
+session_start();
+
+require_once ('dbconnection.php');
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    
+    if (empty($email) || empty($password)) {
+        $error_message = "Please fill in all fields.";
+    } else {
+        // First, check if user is a driver
+        $stmt = $conn->prepare("SELECT DriverID, FirstName, LastName, Password FROM Driver WHERE EmailAddress = ?");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $driver = $result->fetch_assoc();
+        
+        if ($driver && password_verify($password, $driver['Password'])) {
+            // Driver login successful
+            $_SESSION['user_id'] = $driver['DriverID'];
+            $_SESSION['user_type'] = 'driver';
+            $_SESSION['user_name'] = $driver['FirstName'] . ' ' . $driver['LastName'];
+            $_SESSION['user_email'] = $email;
+            
+            header("Location: driver");
+            exit();
+        } else {
+            // Check if user is a supervisor
+            $stmt = $conn->prepare("SELECT SupervisorID, FirstName, LastName, Password FROM Supervisor WHERE Email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $supervisor = $result->fetch_assoc();
+            
+            if ($supervisor && password_verify($password, $supervisor['Password'])) {
+                // Supervisor login successful
+                $_SESSION['user_id'] = $supervisor['SupervisorID'];
+                $_SESSION['user_type'] = 'supervisor';
+                $_SESSION['user_name'] = $supervisor['FirstName'] . ' ' . $supervisor['LastName'];
+                $_SESSION['user_email'] = $email;
+                
+                header("Location: supervisor-dashboard");
+                exit();
+            } else {
+                // Invalid credentials
+                $error_message = "Invalid email or password.";
+            }
+        }
+    }
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IslandStar Express - Employee Portal</title>
+    <title>IslandStar Express - Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
@@ -19,7 +73,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-
         }
         
         .login-container {
@@ -36,13 +89,12 @@
             text-align: center;
         }
 
-
-    .logo img{
-      width: 120px;
-      max-width: 80%;
-      height: auto;
-      border-radius: 8px;
-    }
+        .logo img{
+            width: 120px;
+            max-width: 80%;
+            height: auto;
+            border-radius: 8px;
+        }
         
         .portal-title {
             font-size: 16px;
@@ -51,6 +103,16 @@
             text-align: center;
             letter-spacing: 0.5px;
             margin-bottom: 30px;
+        }
+        
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border: 1px solid #ffcdd2;
         }
         
         .form-group {
@@ -63,7 +125,6 @@
             font-weight: 500;
             color: #424242;
             margin-bottom: 8px;
-            
         }
         
         .form-input {
@@ -206,18 +267,22 @@
         
         <h1 class="portal-title">ISE-VMS PORTAL</h1>
         
-        <form>
+        <?php if (isset($error_message)): ?>
+            <div class="error-message"><?php echo htmlspecialchars($error_message); ?></div>
+        <?php endif; ?>
+        
+        <form method="POST" action="">
             <div class="form-group">
-                <label class="form-label" for="employeeId">Employee ID</label>
+                <label class="form-label" for="email">Email</label>
                 <div class="input-icon user-icon">
-                    <input type="text" id="employeeId" class="form-input" placeholder="">
+                    <input type="email" id="email" name="email" class="form-input" placeholder="" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
                 </div>
             </div>
             
             <div class="form-group">
                 <label class="form-label" for="password">Password</label>
                 <div class="input-icon lock-icon password-input-container">
-                    <input type="password" id="password" class="form-input" placeholder="">
+                    <input type="password" id="password" name="password" class="form-input" placeholder="" required>
                     <div class="password-toggle hide" onclick="togglePassword()"></div>
                 </div>
                 <button type="submit" class="login-button">LOGIN</button>

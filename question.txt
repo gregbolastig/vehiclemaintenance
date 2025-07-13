@@ -1,8 +1,0 @@
-InterIsland Express (ISE) Vehicle Maintenance System
-
-Driver:
-
-Use and declare of every start of day end of night? or every pickup route?
-
-New route:
-What checklist parts should Include? basic parts (ex. Tire condition and pressure, Lights and signals, Exterior condition check, Fluid levels) or just overall and declare only few that has issues
