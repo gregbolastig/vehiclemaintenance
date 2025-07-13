@@ -1,4 +1,7 @@
 <?php
+// Start session first
+session_start();
+
 // Database connection
 $host = 'localhost';
 $dbname = 'VehicleManagementSystem';
@@ -14,6 +17,30 @@ try {
     error_log('Database connection error: ' . $e->getMessage());
     die('Database connection failed. Please try again later.');
 }
+
+// Check if supervisor is logged in
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'supervisor') {
+    header("Location: index.php");
+    exit();
+}
+
+// Get supervisor location from database
+$supervisor_id = $_SESSION['user_id'];
+$supervisor_query = "SELECT SupervisorLocation, FirstName, LastName FROM Supervisor WHERE SupervisorID = ?";
+$supervisor_stmt = $conn->prepare($supervisor_query);
+$supervisor_stmt->bind_param("i", $supervisor_id);
+$supervisor_stmt->execute();
+$supervisor_result = $supervisor_stmt->get_result();
+$supervisor_data = $supervisor_result->fetch_assoc();
+
+if (!$supervisor_data) {
+    header("Location: index.php");
+    exit();
+}
+
+$supervisor_location = $supervisor_data['SupervisorLocation'];
+$supervisor_name = $supervisor_data['FirstName'] . ' ' . $supervisor_data['LastName'];
+$supervisor_stmt->close();
 
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -125,7 +152,7 @@ function getInitials($firstName, $lastName) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vehicle Management System - Driver List</title>
+    <title>Vehicle Maintenance System - Driver List</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -350,24 +377,8 @@ function getInitials($firstName, $lastName) {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-        }
-
-        .widget-icon.blue {
-            background: linear-gradient(135deg, #3b82f6, #1e40af);
-        }
-
-        .widget-icon.green {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-
-        .widget-icon.red {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-        }
-
-        .widget-icon.yellow {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
+            font-size: 2rem;
+            color: #059669;
         }
 
         .widget-value {
@@ -711,7 +722,7 @@ function getInitials($firstName, $lastName) {
                 <i class="fas fa-tools"></i>
                 <div>
                     <h3 class="sidebar-title">VMS</h3>
-                    <p class="sidebar-subtitle">Vehicle Management System</p>
+                    <p class="sidebar-subtitle">Vehicle Maintenance System</p>
                 </div>
             </div>
         </div>
@@ -724,11 +735,11 @@ function getInitials($firstName, $lastName) {
                 <i class="fas fa-car"></i>
                 Vehicle Management
             </a>
-            <a href="supervisor-driver-list.php" class="nav-item active">
+            <a href="#" class="nav-item active">
                 <i class="fas fa-users"></i>
                 Driver Management
             </a>
-            <a href="supervisor-maintenance-alerts.php" class="nav-item">
+            <a href="supervisor-alerts.php" class="nav-item">
                 <i class="fas fa-bell"></i>
                 Maintenance Alerts
             </a>
@@ -739,6 +750,10 @@ function getInitials($firstName, $lastName) {
             <a href="supervisor-reports.php" class="nav-item">
                 <i class="fas fa-chart-line"></i>
                 Reports
+            </a>
+            <a href="logout.php" class="nav-item">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
             </a>
 
         </nav>
@@ -763,8 +778,8 @@ function getInitials($firstName, $lastName) {
                         <i class="fas fa-user"></i>
                     </div>
                     <div>
-                        <div style="font-weight: 600; font-size: 0.875rem;">Supervisor</div>
-                        <div style="font-size: 0.75rem; color: #64748b;">Admin</div>
+                        <div style="font-weight: 600; font-size: 0.875rem;"><?php echo htmlspecialchars($supervisor_name); ?></div>
+                        <div style="font-size: 0.75rem; color: #64748b;"><?php echo htmlspecialchars($supervisor_location); ?></div>
                     </div>
                 </div>
             </div>

@@ -90,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         .logo img{
-            width: 120px;
+            width: 150px;
             max-width: 80%;
             height: auto;
             border-radius: 8px;
@@ -179,7 +179,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         .forgot-password a {
-            color: #2E7D32;
+            color: orange;
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
@@ -252,6 +252,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .password-input-container .form-input {
             padding-right: 45px;
         }
+        .login-container h4 {
+            font-size: 12px;
+            color: #888282ff;
+            margin-top: 16px;
+            text-align: center;
+            line-height: 1.4;
+        }
+
     </style>
 </head>
 <body>
@@ -265,7 +273,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
         
-        <h1 class="portal-title">ISE-VMS PORTAL</h1>
         
         <?php if (isset($error_message)): ?>
             <div class="error-message"><?php echo htmlspecialchars($error_message); ?></div>
@@ -286,6 +293,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="password-toggle hide" onclick="togglePassword()"></div>
                 </div>
                 <button type="submit" class="login-button">LOGIN</button>
+
+                <h4>By logging in, you agree to the ISE-VMS <u onclick="window.location.href='terms.php'" style="cursor: pointer;">terms and conditions</u> regarding data privacy and responsible system use.</h4>
+
             </div>
             
             <div class="forgot-password">

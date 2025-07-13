@@ -1,7 +1,10 @@
 RewriteEngine On
 
-# Remove .php extension
+# Redirect .php URLs to clean URLs
+RewriteCond %{THE_REQUEST} \s/+vehiclemaintenance/([^.\s]+)\.php [NC]
+RewriteRule ^ /vehiclemaintenance/%1? [R=301,L]
+
+# Remove .php extension (internal rewrite)
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}\.php -f
 RewriteRule ^([^\.]+)$ $1.php [NC,L]
-

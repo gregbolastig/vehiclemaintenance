@@ -5,12 +5,29 @@ require_once 'dbconnection.php';
 // Start session to get supervisor information
 session_start();
 
-// Get supervisor location from session or database
-// This assumes you have supervisor authentication implemented
-$supervisor_location = 'Boracay'; // Default location - replace with actual session logic
+// Check if supervisor is logged in
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'supervisor') {
+    header("Location: index.php");
+    exit();
+}
 
-// You should replace the above line with something like:
-// $supervisor_location = $_SESSION['supervisor_location'] ?? 'Boracay';
+// Get supervisor location from database
+$supervisor_id = $_SESSION['user_id'];
+$supervisor_query = "SELECT SupervisorLocation, FirstName, LastName FROM Supervisor WHERE SupervisorID = ?";
+$supervisor_stmt = $conn->prepare($supervisor_query);
+$supervisor_stmt->bind_param("i", $supervisor_id);
+$supervisor_stmt->execute();
+$supervisor_result = $supervisor_stmt->get_result();
+$supervisor_data = $supervisor_result->fetch_assoc();
+
+if (!$supervisor_data) {
+    header("Location: index.php");
+    exit();
+}
+
+$supervisor_location = $supervisor_data['SupervisorLocation'];
+$supervisor_name = $supervisor_data['FirstName'] . ' ' . $supervisor_data['LastName'];
+$supervisor_stmt->close();
 
 // Initialize variables
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
@@ -145,6 +162,58 @@ $maintenance_stmt->bind_param("s", $supervisor_location);
 $maintenance_stmt->execute();
 $maintenance_result = $maintenance_stmt->get_result();
 $maintenance_stats = $maintenance_result->fetch_assoc();
+
+
+// Handle vehicle registration form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_vehicle'])) {
+    $plate_number = trim($_POST['plate_number']);
+    $model = trim($_POST['model']);
+    $chassis_number = trim($_POST['chassis_number']);
+    $initial_odometer = floatval($_POST['initial_odometer']);
+    
+    // Validate input
+    if (empty($plate_number) || empty($model) || empty($chassis_number)) {
+        $error_message = "All fields are required.";
+    } else {
+        // Check if plate number or chassis number already exists
+        $check_query = "SELECT VehicleID FROM Vehicle WHERE PlateNumber = ? OR ChassisNumber = ?";
+        $check_stmt = $conn->prepare($check_query);
+        $check_stmt->bind_param("ss", $plate_number, $chassis_number);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        
+        if ($check_result->num_rows > 0) {
+            $error_message = "Vehicle with this plate number or chassis number already exists.";
+        } else {
+            // Insert new vehicle
+            $insert_query = "INSERT INTO Vehicle (PlateNumber, Model, ChassisNumber, VehicleLocation) VALUES (?, ?, ?, ?)";
+            $insert_stmt = $conn->prepare($insert_query);
+            $insert_stmt->bind_param("ssss", $plate_number, $model, $chassis_number, $supervisor_location);
+            
+            if ($insert_stmt->execute()) {
+                $new_vehicle_id = $conn->insert_id;
+                
+                // Insert initial odometer reading if provided
+                if ($initial_odometer > 0) {
+                    $odometer_query = "INSERT INTO OdometerReadings (VehicleID, OdometerReading) VALUES (?, ?)";
+                    $odometer_stmt = $conn->prepare($odometer_query);
+                    $odometer_stmt->bind_param("id", $new_vehicle_id, $initial_odometer);
+                    $odometer_stmt->execute();
+                    $odometer_stmt->close();
+                }
+                
+                $success_message = "Vehicle registered successfully!";
+                // Refresh the page to show the new vehicle
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit();
+            } else {
+                $error_message = "Error registering vehicle. Please try again.";
+            }
+            $insert_stmt->close();
+        }
+        $check_stmt->close();
+    }
+}
 
 // Close prepared statements
 $count_stmt->close();
@@ -385,24 +454,8 @@ $maintenance_stmt->close();
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-        }
-
-        .widget-icon.blue {
-            background: linear-gradient(135deg, #3b82f6, #1e40af);
-        }
-
-        .widget-icon.green {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-
-        .widget-icon.red {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-        }
-
-        .widget-icon.yellow {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
+            font-size: 2rem;
+            color: #059669;
         }
 
         .widget-value {
@@ -609,6 +662,154 @@ $maintenance_stmt->close();
             color: #dc2626;
             border-color: #dc2626;
         }
+        .table-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        .add-vehicle-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .add-vehicle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;    
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.72);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 1% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #1e293b;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .close {
+            color: #64748b;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close:hover {
+            color: #dc2626;
+        }
+
+        .vehicle-form {
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-group input:disabled {
+            background-color: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+
+        .cancel-btn {
+            padding: 0.75rem 1.5rem;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .cancel-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .submit-btn {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
 
         @media (max-width: 768px) {
             .header {
@@ -648,6 +849,22 @@ $maintenance_stmt->close();
             .data-table td {
                 padding: 0.5rem;
             }
+                .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+            
+            .vehicle-form {
+                padding: 1.5rem;
+            }
+            
+            .form-buttons {
+                flex-direction: column;
+            }
+            
+            .cancel-btn, .submit-btn {
+                width: 100%;
+            }   
         }
     </style>    
 <body>
@@ -658,7 +875,7 @@ $maintenance_stmt->close();
                 <i class="fas fa-tools"></i>
                 <div>
                     <h3 class="sidebar-title">VMS</h3>
-                    <p class="sidebar-subtitle">Vehicle Management System</p>
+                    <p class="sidebar-subtitle">Vehicle Maintenance System</p>
                 </div>
             </div>
         </div>
@@ -667,7 +884,7 @@ $maintenance_stmt->close();
                 <i class="fas fa-home"></i>
                 Dashboard
             </a>
-            <a href="supervisor-vehicle-list.php" class="nav-item active">
+            <a href="#" class="nav-item active">
                 <i class="fas fa-car"></i>
                 Vehicle Management
             </a>
@@ -675,11 +892,11 @@ $maintenance_stmt->close();
                 <i class="fas fa-users"></i>
                 Driver Management
             </a>
-            <a href="#" class="nav-item">
+            <a href="supervisor-alerts.php" class="nav-item">
                 <i class="fas fa-bell"></i>
                 Maintenance Alerts
             </a>
-            <a href="#" class="nav-item">
+            <a href="supervisor-maintenance-history.PHP" class="nav-item" >
                 <i class="fas fa-wrench"></i>
                 Maintenance History
             </a>
@@ -687,10 +904,11 @@ $maintenance_stmt->close();
                 <i class="fas fa-chart-line"></i>
                 Reports
             </a>
-            <a href="#" class="nav-item">
-                <i class="fas fa-cog"></i>
-                Settings
+            <a href="logout.php" class="nav-item">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
             </a>
+            
         </nav>
     </div>
 
@@ -713,7 +931,7 @@ $maintenance_stmt->close();
                         <i class="fas fa-user"></i>
                     </div>
                     <div>
-                        <div style="font-weight: 600; font-size: 0.875rem;">Supervisor</div>
+                        <div style="font-weight: 600; font-size: 0.875rem;"><?php echo htmlspecialchars($supervisor_name); ?></div>
                         <div style="font-size: 0.75rem; color: #64748b;"><?php echo htmlspecialchars($supervisor_location); ?></div>
                     </div>
                 </div>
@@ -775,6 +993,12 @@ $maintenance_stmt->close();
                     <h2 class="table-title">Vehicle List - <?php echo htmlspecialchars($supervisor_location); ?></h2>
                     <p class="table-subtitle">Complete record of all vehicles in your assigned location</p>
 
+                    <div class="table-actions">
+                        <button class="add-vehicle-btn" onclick="openVehicleModal()">
+                            <i class="fas fa-plus"></i> Register New Vehicle
+                        </button>
+                    </div>
+
                     <div class="table-filters">
                         <form class="search-form" method="GET">
                             <input type="text" name="search" class="search-input" placeholder="Search by plate number, model, or chassis number..." value="<?php echo htmlspecialchars($search); ?>">
@@ -792,7 +1016,6 @@ $maintenance_stmt->close();
                                 <th>Plate Number</th>
                                 <th>Model</th>
                                 <th>Chassis Number</th>
-                                <th>Location</th>
                                 <th>Latest Odometer</th>
                                 <th>Status</th>
                                 <th>Current Driver</th>
@@ -807,13 +1030,8 @@ $maintenance_stmt->close();
                                         <td class="vehicle-plate"><?php echo htmlspecialchars($vehicle['PlateNumber']); ?></td>
                                         <td><?php echo htmlspecialchars($vehicle['Model']); ?></td>
                                         <td><?php echo htmlspecialchars($vehicle['ChassisNumber']); ?></td>
-                                        <td>
-                                            <span class="location-badge">
-                                                <i class="fas fa-map-marker-alt"></i>
-                                                <?php echo htmlspecialchars($vehicle['VehicleLocation']); ?>
-                                            </span>
-                                        </td>
-                                        <td><?php echo number_format($vehicle['LatestOdometer'], 2); ?> km</td>
+
+                                        <td><?php echo number_format($vehicle['LatestOdometer']); ?> km</td>
                                         <td>
                                             <span class="status-badge <?php echo $vehicle['Status'] === 'Available' ? 'status-available' : 'status-in-use'; ?>">
                                                 <?php echo $vehicle['Status']; ?>
@@ -870,6 +1088,7 @@ $maintenance_stmt->close();
             </div>
         </main>
     </div>
+    
 
     <script>
         // Sidebar toggle functionality
@@ -920,6 +1139,32 @@ $maintenance_stmt->close();
                 location.reload();
             }
         }, 30000);
+        
+        function openVehicleModal() {
+            document.getElementById('vehicleModal').style.display = 'block';
+        }
+
+        function closeVehicleModal() {
+            document.getElementById('vehicleModal').style.display = 'none';
+            // Reset form
+            document.querySelector('.vehicle-form').reset();
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('vehicleModal');
+            if (event.target === modal) {
+                closeVehicleModal();
+            }
+        }
+        // Show success/error messages
+        <?php if (isset($success_message)): ?>
+            alert('<?php echo addslashes($success_message); ?>');
+        <?php endif; ?>
+
+        <?php if (isset($error_message)): ?>
+            alert('<?php echo addslashes($error_message); ?>');
+        <?php endif; ?>
     </script>
 
     <style>
@@ -939,5 +1184,41 @@ $maintenance_stmt->close();
             font-size: 0.75rem;
         }
     </style>
+
+        <!-- Vehicle Registration Modal -->
+    <div id="vehicleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Register New Vehicle</h3>
+                <span class="close" onclick="closeVehicleModal()">&times;</span>
+            </div>
+            <form method="POST" class="vehicle-form">
+                <div class="form-group">
+                    <label for="plate_number">Plate Number *</label>
+                    <input type="text" id="plate_number" name="plate_number" required maxlength="15" placeholder="Ex. ABG-6556 (no spacing)">
+                </div>
+                <div class="form-group">
+                    <label for="model">Vehicle Model *</label>
+                    <input type="text" id="model" name="model" required maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="chassis_number">Chassis Number *</label>
+                    <input type="text" id="chassis_number" name="chassis_number" required maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="initial_odometer">Initial Odometer Reading (km)</label>
+                    <input type="number" id="initial_odometer" name="initial_odometer" step="0.01" min="0" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" value="<?php echo htmlspecialchars($supervisor_location); ?>" disabled>
+                </div>
+                <div class="form-buttons">
+                    <button type="button" class="cancel-btn" onclick="closeVehicleModal()">Cancel</button>
+                    <button type="submit" name="register_vehicle" class="submit-btn">Register Vehicle</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>
