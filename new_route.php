@@ -1,3 +1,210 @@
+<?php
+session_start();
+
+// Database connection
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "VehicleManagementSystem";
+
+try {
+    $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch(PDOException $e) {
+    die("Connection failed: " . $e->getMessage());
+}
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'driver') {
+    header("Location: index.php");
+    exit();
+}
+
+$driver_id = $_SESSION['user_id'];
+
+// Fetch driver information
+$stmt = $pdo->prepare("SELECT FirstName, MiddleName, LastName, EmployeeNo, EmailAddress FROM Driver WHERE DriverID = ?");
+$stmt->execute([$driver_id]);
+$driver = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$driver) {
+    header("Location: index.php");
+    exit();
+}
+
+// Generate driver initials
+$initials = strtoupper(substr($driver['FirstName'], 0, 1) . substr($driver['LastName'], 0, 1));
+$full_name = $driver['FirstName'] . ' ' . $driver['MiddleName'] . ' ' . $driver['LastName'];
+
+// Handle form submission
+$success_message = '';
+$error_message = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $plate_number = strtoupper(trim($_POST['plate_number']));
+        $model = trim($_POST['model']);
+        $chassis_number = trim($_POST['chassis_number']);
+        $start_odometer = floatval($_POST['start_odometer']);
+        $remarks = trim($_POST['remarks']);
+        
+        // Vehicle inspection checklist
+        $checklist_items = [
+            'battery' => isset($_POST['battery']),
+            'lights' => isset($_POST['lights']),
+            'oil' => isset($_POST['oil']),
+            'water' => isset($_POST['water']),
+            'brakes' => isset($_POST['brakes']),
+            'air' => isset($_POST['air']),
+            'gas' => isset($_POST['gas']),
+            'engine' => isset($_POST['engine']),
+            'tires' => isset($_POST['tires']),
+            'self' => isset($_POST['self'])
+        ];
+        
+        // Check if at least one checklist item is checked
+        if (!array_filter($checklist_items)) {
+            throw new Exception("Please complete the vehicle inspection checklist before submitting.");
+        }
+        
+        // Validate required fields
+        if (empty($plate_number) || empty($model) || empty($chassis_number) || empty($start_odometer)) {
+            throw new Exception("Please fill in all required fields.");
+        }
+        
+        // Start transaction
+        $pdo->beginTransaction();
+        
+        // Check if vehicle exists, if not create it
+        $stmt = $pdo->prepare("SELECT VehicleID FROM Vehicle WHERE PlateNumber = ?");
+        $stmt->execute([$plate_number]);
+        $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$vehicle) {
+            // Create new vehicle
+            $stmt = $pdo->prepare("INSERT INTO Vehicle (PlateNumber, Model, ChassisNumber) VALUES (?, ?, ?)");
+            $stmt->execute([$plate_number, $model, $chassis_number]);
+            $vehicle_id = $pdo->lastInsertId();
+        } else {
+            $vehicle_id = $vehicle['VehicleID'];
+            
+            // Update vehicle details if needed
+            $stmt = $pdo->prepare("UPDATE Vehicle SET Model = ?, ChassisNumber = ? WHERE VehicleID = ?");
+            $stmt->execute([$model, $chassis_number, $vehicle_id]);
+        }
+        
+        // Check if driver has an active route
+        $stmt = $pdo->prepare("SELECT RouteID FROM Route WHERE DriverID = ? AND EndDateTime IS NULL");
+        $stmt->execute([$driver_id]);
+        $active_route = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($active_route) {
+            throw new Exception("You have an active route. Please end the current route before starting a new one.");
+        }
+        
+        // Create new route
+        $stmt = $pdo->prepare("INSERT INTO Route (DriverID, VehicleID, StartOdometer, StartDateTime) VALUES (?, ?, ?, NOW())");
+        $stmt->execute([$driver_id, $vehicle_id, $start_odometer]);
+        $route_id = $pdo->lastInsertId();
+        
+        // Add odometer reading
+        $stmt = $pdo->prepare("INSERT INTO OdometerReadings (VehicleID, OdometerReading) VALUES (?, ?)");
+        $stmt->execute([$vehicle_id, $start_odometer]);
+        
+        // Store checklist and remarks in session for potential future use
+        $_SESSION['last_checklist'] = $checklist_items;
+        $_SESSION['last_remarks'] = $remarks;
+        
+        $debugStmt = $pdo->prepare("DESCRIBE Vehicle");
+$debugStmt->execute();
+$columns = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
+error_log("Vehicle table columns: " . print_r($columns, true));
+
+// Also check what's actually in the database
+$debugStmt2 = $pdo->prepare("SELECT * FROM Vehicle WHERE PlateNumber = ? LIMIT 1");
+$debugStmt2->execute([$plate_number]);
+$debugVehicle = $debugStmt2->fetch(PDO::FETCH_ASSOC);
+error_log("Raw vehicle data from database: " . print_r($debugVehicle, true));
+          
+        $pdo->commit();
+        
+        $success_message = "Route started successfully! Route ID: " . $route_id;
+        
+    } catch (Exception $e) {
+        $pdo->rollback();
+        $error_message = $e->getMessage();
+    }
+}
+
+// Get vehicles for suggestions (optional)
+$stmt = $pdo->prepare("SELECT DISTINCT PlateNumber, Model FROM Vehicle ORDER BY PlateNumber");
+$stmt->execute();
+$vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Replace your existing GET vehicle endpoint with this corrected version:
+
+if (isset($_GET['action']) && $_GET['action'] === 'get_vehicle' && isset($_GET['plate_number'])) {
+    header('Content-Type: application/json');
+    
+    $plate_number = strtoupper(trim($_GET['plate_number']));
+    
+    // Debug: Log the plate number being searched
+    error_log("Searching for plate number: " . $plate_number);
+    
+    try {
+        // Make sure we're selecting the correct column name from the database
+        $stmt = $pdo->prepare("SELECT PlateNumber, Model, ChassisNumber FROM Vehicle WHERE PlateNumber = ?");
+        $stmt->execute([$plate_number]);
+        $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Debug: Log the query result
+        error_log("Query result: " . json_encode($vehicle));
+        
+        if ($vehicle) {
+            // Debug: Check what we actually got from database
+            error_log("Raw vehicle data: " . print_r($vehicle, true));
+            
+            // Clean up the chassis number - remove any invalid data
+            $chassisNumber = $vehicle['ChassisNumber'] ?? '';
+            
+            // Check if chassis number looks like a date (invalid data)
+            if (preg_match('/^\d{4}-\d{2}-\d{2}/', $chassisNumber)) {
+                $chassisNumber = ''; // Clear invalid data
+            }
+            
+            $response = [
+                'success' => true,
+                'data' => [
+                    'PlateNumber' => $vehicle['PlateNumber'] ?? '',
+                    'Model' => $vehicle['Model'] ?? '',
+                    'ChassisNumber' => $chassisNumber
+                ]
+            ];
+            
+            error_log("Cleaned chassis number: " . $chassisNumber);
+            error_log("Sending response: " . json_encode($response));
+            echo json_encode($response);
+        } else {
+            $response = [
+                'success' => false,
+                'message' => 'Vehicle not found'
+            ];
+            error_log("Vehicle not found for plate: " . $plate_number);
+            echo json_encode($response);
+        }
+    } catch (Exception $e) {
+        $response = [
+            'success' => false,
+            'message' => 'Database error: ' . $e->getMessage()
+        ];
+        error_log("Database error: " . $e->getMessage());
+        echo json_encode($response);
+    }
+    exit();
+}
+
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -324,6 +531,58 @@ i:hover {
   transform: scale(0.98);
 }
 
+    .alert {
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .alert-success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .vehicle-suggestions {
+      position: relative;
+    }
+
+    .suggestions-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+
+    .suggestion-item {
+      padding: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+
+    .suggestion-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+
      @media (max-width: 768px) {
         body {
             background-color: #fff;
@@ -344,12 +603,12 @@ i:hover {
   <div class="sidebar-logo">
     <img src="img/logo1.png" alt="Company Logo">
   </div>
-<a href="driver"><i class="fas fa-home"></i> Home</a>
-<a href="new_route"><i class="fas fa-plus"></i> New Route</a>
-<a href="driver_history"><i class="fas fa-history"></i> History</a>
-<a href="report_vehicle_issue"><i class="fas fa-exclamation-triangle"></i> Report Vehicle Issue</a>
+<a href="driver.php"><i class="fas fa-home"></i> Home</a>
+<a href="new_route.php"><i class="fas fa-plus"></i> New Route</a>
+<a href="driver_history.php"><i class="fas fa-history"></i> History</a>
+<a href="report_vehicle_issue.php"><i class="fas fa-exclamation-triangle"></i> Report Vehicle Issue</a>
 
-<a href="index"><i class="fas fa-sign-out-alt"></i> Logout</a>
+<a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
 <br><br>
 <a href="#"><i class="fas fa-info-circle"></i> Report System Issue</a>
 
@@ -368,105 +627,123 @@ i:hover {
     </div>
 
     <div class="profile-card">
-      <div class="profile-circle">CB</div>
-      <div class="profile-name">Christian Greg Bolastig</div>
-      <div class="profile-info">Employee ID: 2025-0703</div>
-      <div class="profile-info">Email: gregbolastig@gmail.com</div>
+      <div class="profile-circle"><?php echo $initials; ?></div>
+      <div class="profile-name"><?php echo htmlspecialchars($full_name); ?></div>
+      <div class="profile-info">Employee ID: <?php echo htmlspecialchars($driver['EmployeeNo']); ?></div>
+      <div class="profile-info">Email: <?php echo htmlspecialchars($driver['EmailAddress']); ?></div>
     </div>  
 <br>
-    <div class="section">
-        <i class="fas fa-arrow-left" onclick="history.back(); return false;"></i>
-      <div class="section-title">Vehicle Details</div>
 
-      <div class="form-group">
-        <label>Plate no.</label>
-        <input type="text" placeholder="// ex. ABG6556 (no spacing)" />
+    <?php if ($success_message): ?>
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_message); ?>
       </div>
+    <?php endif; ?>
 
-      <div class="form-group">
-        <label>Model</label>
-        <input type="text" placeholder="// ex. Toyota HI-ACE" />
+    <?php if ($error_message): ?>
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error_message); ?>
       </div>
+    <?php endif; ?>
 
-      <div class="form-group">
-        <label>Body no.</label>
-        <input type="text" placeholder="// enter chassis no." />
-      </div>
-      
-      
-      <div class="form-group">
-        <label>Start Odometer Reading (km)</label>
-        <input type="text" placeholder="// follow this format: 10293" />
-      </div>
-      
-      <div class="form-group">
-        <label>Time and Date (automatic)</label>
-        <input style="color:black;" type="text" placeholder="// Automatic (uneditable)" disabled />
-      </div>
+    <form method="POST" action="new_route.php" id="routeForm">
+      <div class="section">
+          <i class="fas fa-arrow-left" onclick="history.back(); return false;"></i>
+        <div class="section-title">Vehicle Details</div>
+
+        <div class="form-group vehicle-suggestions">
+          <label>Plate no. *</label>
+          <input type="text" name="plate_number" id="plate_number" placeholder="// ex. ABG6556 (no spacing)" required autocomplete="off" />
+          <div class="suggestions-list" id="plateSuggestions"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Model *</label>
+          <input type="text" name="model" id="model" placeholder="// ex. Toyota HI-ACE" required />
+        </div>
+
+        <div class="form-group">
+          <label>Body no. *</label>
+          <input type="text" name="chassis_number" id="chassis_number" placeholder="// enter chassis no." required />
+        </div>
+        
+        <div class="form-group">
+          <label>Start Odometer Reading (km) *</label>
+          <input type="number" name="start_odometer" step="0.01" placeholder="// follow this format: 10293" required />
+        </div>
+        
+        <div class="form-group">
+          <label>Time and Date (automatic)</label>
+          <input type="text" id="datetime" placeholder="// Automatic (uneditable)" disabled />
+        </div>
 <br>
 <div class="checklist-title">Vehicle Inspection Checklist</div>
-      <div class="checklist-container">
-        
-        <div class="checklist">
-          <div class="checkbox-item">
-            <input type="checkbox" id="battery" />
-            <label for="battery"><i class="fas fa-battery-full"></i> Battery</label>
+        <div class="checklist-container">
+          <div class="checklist">
+            <div class="checkbox-item">
+              <input type="checkbox" name="battery" id="battery" />
+              <label for="battery"><i class="fas fa-battery-full"></i> Battery</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="lights" id="lights" />
+              <label for="lights"><i class="fas fa-lightbulb"></i> Lights</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="oil" id="oil" />
+              <label for="oil"><i class="fas fa-oil-can"></i> Oil</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="water" id="water" />
+              <label for="water"><i class="fas fa-tint"></i> Water</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="brakes" id="brakes" />
+              <label for="brakes"><i class="fas fa-hand-paper"></i> Brakes</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="air" id="air" />
+              <label for="air"><i class="fas fa-wind"></i> Air</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="gas" id="gas" />
+              <label for="gas"><i class="fas fa-gas-pump"></i> Gas</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="engine" id="engine" />
+              <label for="engine"><i class="fas fa-gears"></i> Engine</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="tires" id="tires" />
+              <label for="tires"><i class="fas fa-compact-disc"></i> Tires</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" name="self" id="self" />
+              <label for="self"><i class="fas fa-user-check"></i> Self</label>
+            </div>
           </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="lights" />
-            <label for="lights"><i class="fas fa-lightbulb"></i> Lights</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="oil" />
-            <label for="oil"><i class="fas fa-oil-can"></i> Oil</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="water" />
-            <label for="water"><i class="fas fa-tint"></i> Water</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="brakes" />
-            <label for="brakes"><i class="fas fa-hand-paper"></i> Brakes</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="air" />
-            <label for="air"><i class="fas fa-wind"></i> Air</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="gas" />
-            <label for="gas"><i class="fas fa-gas-pump"></i> Gas</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="engine" />
-            <label for="engine"><i class="fas fa-gears"></i> Engine</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="tires" />
-            <label for="tires"><i class="fas fa-compact-disc"></i> Tires</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="self" />
-            <label for="self"><i class="fas fa-user-check"></i> Self</label>
-          </div>
-          
         </div>
+        <div class="form-group">
+          <label>Remarks:</label>
+          <input type="text" name="remarks" placeholder="// leave blank if none" />
+        </div>
+        <button type="submit" class="submit-btn">START ROUTE</button>
       </div>
-      <div class="form-group">
-        <label>Remarks:</label>
-        <input type="text" placeholder="// leave blank if none" />
-      </div>
-      <button class="submit-btn">SUBMIT</button>
+    </form>
+
 <div style="text-align:center; margin-top: 30px;">
   <p style="font-size: 12px; color: #333; margin-bottom: 10px;">Found problem in vehicle?</p>
-  <button class="btn report-problem" onclick="window.location.href='report_vehicle_issue'"><i class="fas fa-exclamation-triangle" style="color: white;"></i>send report</button>
+  <button class="btn report-problem" onclick="window.location.href='report_vehicle_issue.php'"><i class="fas fa-exclamation-triangle" style="color: white;"></i>send report</button>
 </div>
 
-    </div><br><br>
+<br><br>
   </div>
 
   <script>
+    // Vehicle data for suggestions
+    const vehicles = <?php echo json_encode($vehicles); ?>;
+    
     // Auto-populate current date and time
-    const timeInput = document.querySelector('input[disabled]');
+    const timeInput = document.getElementById('datetime');
     const now = new Date();
     const formattedDateTime = now.toLocaleString('en-US', {
       year: 'numeric',
@@ -478,29 +755,135 @@ i:hover {
     });
     timeInput.value = formattedDateTime;
 
-    // Handle form submission
-    document.querySelector('.submit-btn').addEventListener('click', function() {
+    // Auto-suggestions for plate number
+    const plateInput = document.getElementById('plate_number');
+    const modelInput = document.getElementById('model');
+    const chassisInput = document.getElementById('chassis_number');
+    const suggestions = document.getElementById('plateSuggestions');
+
+    // Replace the existing plateInput.addEventListener('input', function() { ... }) with this:
+
+    plateInput.addEventListener('input', function() {
+      const value = this.value.toUpperCase();
+      this.value = value; // Convert to uppercase as user types
+      
+      suggestions.innerHTML = '';
+      
+      if (value.length > 0) {
+        const filtered = vehicles.filter(vehicle => 
+          vehicle.PlateNumber.includes(value)
+        );
+        
+        if (filtered.length > 0) {
+          suggestions.style.display = 'block';
+          filtered.forEach(vehicle => {
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            div.textContent = `${vehicle.PlateNumber} - ${vehicle.Model}`;
+            div.addEventListener('click', function() {
+              plateInput.value = vehicle.PlateNumber;
+              modelInput.value = vehicle.Model;
+              suggestions.style.display = 'none';
+              // Auto-populate chassis number when suggestion is clicked
+              fetchVehicleData(vehicle.PlateNumber);
+            });
+            suggestions.appendChild(div);
+          });
+        } else {
+          suggestions.style.display = 'none';
+        }
+      } else {
+        suggestions.style.display = 'none';
+      }
+    });
+
+    // Add this new event listener for when plate number is typed/pasted directly
+    plateInput.addEventListener('blur', function() {
+      const plateNumber = this.value.trim();
+      if (plateNumber.length > 0) {
+        fetchVehicleData(plateNumber);
+      }
+    });
+
+    // Replace your fetchVehicleData function with this debug version:
+
+    // Replace your existing fetchVehicleData function with this corrected version:
+
+function fetchVehicleData(plateNumber) {
+    console.log('Fetching data for plate:', plateNumber); // Debug log
+    
+    fetch(`new_route.php?action=get_vehicle&plate_number=${encodeURIComponent(plateNumber)}`)
+        .then(response => {
+            console.log('Response status:', response.status); // Debug log
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data); // Debug log
+            
+            if (data.success && data.data) {
+                console.log('Vehicle data:', data.data); // Debug log
+                console.log('ChassisNumber from response:', data.data.ChassisNumber); // Debug log
+                
+                // Auto-populate the fields - make sure we're accessing the correct property
+                modelInput.value = data.data.Model || '';
+                chassisInput.value = data.data.ChassisNumber || '';
+                
+                // Optional: Show a subtle indication that data was loaded
+                modelInput.style.backgroundColor = '#f0f8ff';
+                chassisInput.style.backgroundColor = '#f0f8ff';
+                
+                // Remove the background color after 2 seconds
+                setTimeout(() => {
+                    modelInput.style.backgroundColor = '';
+                    chassisInput.style.backgroundColor = '';
+                }, 2000);
+                
+                console.log('Fields populated - Model:', modelInput.value, 'Chassis:', chassisInput.value);
+            } else {
+                console.log('Vehicle not found or invalid response:', data.message || 'Unknown error');
+                // If vehicle not found, clear the model and chassis fields
+                modelInput.value = '';
+                chassisInput.value = '';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching vehicle data:', error);
+            // Don't clear fields on error - let user manually input
+        });
+}
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.vehicle-suggestions')) {
+        suggestions.style.display = 'none';
+      }
+    });
+
+    // Form validation
+    document.getElementById('routeForm').addEventListener('submit', function(e) {
       const checkboxes = document.querySelectorAll('input[type="checkbox"]');
       const checkedItems = Array.from(checkboxes).filter(cb => cb.checked);
       
       if (checkedItems.length === 0) {
+        e.preventDefault();
         alert('Please complete the vehicle inspection checklist before submitting.');
-        return;
+        return false;
       }
-      
-      // Here you would typically send the data to your server
-      console.log('Form submitted with', checkedItems.length, 'inspection items checked');
-      alert('Route details submitted successfully!');
     });
-      function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
-    sidebar.classList.toggle('active');
-    overlay.classList.toggle('active');
-  }
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('current-year').textContent = new Date().getFullYear();
-  });
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('overlay');
+      sidebar.classList.toggle('active');
+      overlay.classList.toggle('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('current-year').textContent = new Date().getFullYear();
+    });
   </script>
 </body>
 </html>

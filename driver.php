@@ -1,3 +1,74 @@
+<?php
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'driver') {
+    header("Location: index.php");
+    exit();
+}
+
+// Database configuration - use consistent connection
+require_once('dbconnection.php');
+
+// Get driver information using the correct session variable
+$driver_id = $_SESSION['user_id'];
+$driver_query = "SELECT * FROM Driver WHERE DriverID = ?";
+$driver_stmt = $conn->prepare($driver_query);
+$driver_stmt->bind_param("i", $driver_id);
+$driver_stmt->execute();
+$driver_result = $driver_stmt->get_result();
+$driver = $driver_result->fetch_assoc();
+
+if (!$driver) {
+    session_destroy();
+    header("Location: index.php");
+    exit();
+}
+
+// Get current/in-progress routes
+$current_routes_query = "
+    SELECT r.*, v.PlateNumber, v.Model 
+    FROM Route r
+    JOIN Vehicle v ON r.VehicleID = v.VehicleID
+    WHERE r.DriverID = ? AND r.EndDateTime IS NULL
+    ORDER BY r.StartDateTime DESC
+";
+$current_routes_stmt = $conn->prepare($current_routes_query);
+$current_routes_stmt->bind_param("i", $driver_id);
+$current_routes_stmt->execute();
+$current_routes_result = $current_routes_stmt->get_result();
+$current_routes = $current_routes_result->fetch_all(MYSQLI_ASSOC);
+
+// Get completed routes (recent 5)
+$completed_routes_query = "
+    SELECT r.*, v.PlateNumber, v.Model 
+    FROM Route r
+    JOIN Vehicle v ON r.VehicleID = v.VehicleID
+    WHERE r.DriverID = ? AND r.EndDateTime IS NOT NULL
+    ORDER BY r.EndDateTime DESC
+    LIMIT 5
+";
+$completed_routes_stmt = $conn->prepare($completed_routes_query);
+$completed_routes_stmt->bind_param("i", $driver_id);
+$completed_routes_stmt->execute();
+$completed_routes_result = $completed_routes_stmt->get_result();
+$completed_routes = $completed_routes_result->fetch_all(MYSQLI_ASSOC);
+
+// Function to get driver initials
+function getDriverInitials($firstName, $lastName) {
+    return strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1));
+}
+
+// Function to format date/time
+function formatDateTime($datetime) {
+    return date('g:i A', strtotime($datetime));
+}
+
+function formatDate($datetime) {
+    return date('m/d/Y', strtotime($datetime));
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -149,6 +220,13 @@
       font-size: 12px;
     }
 
+    .no-routes {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 20px;
+    }
+
     hr {
       border: none;
       border-top: 1px solid #ddd;
@@ -224,42 +302,42 @@
     }
 
     .sidebar a i {
-  margin-right: 10px;
-  width: 16px;
-  text-align: center;
-}
-
-.overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  background: rgba(0,0,0,0.4);
-  z-index: 999;
-  display: none;
-}
-
-.overlay.active {
-  display: block;
-}
-button:active {
-  transform: scale(0.98);
-}
-
-     @media (max-width: 768px) {
-        body {
-            background-color: #fff;
-            
-        }
-    .container {
-      width: 360px;
-      background-color: #fff;
-      padding: 5px 5px 5px 5px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0);
-      min-height: 100vh;
+      margin-right: 10px;
+      width: 16px;
+      text-align: center;
     }
-        }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      background: rgba(0,0,0,0.4);
+      z-index: 999;
+      display: none;
+    }
+
+    .overlay.active {
+      display: block;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    @media (max-width: 768px) {
+      body {
+        background-color: #fff;
+      }
+      .container {
+        width: 360px;
+        background-color: #fff;
+        padding: 5px 5px 5px 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0);
+        min-height: 100vh;
+      }
+    }
   </style>
 </head>
 <body>
@@ -267,14 +345,13 @@ button:active {
   <div class="sidebar-logo">
     <img src="img/logo1.png" alt="Company Logo">
   </div>
-<a href="driver"><i class="fas fa-home"></i> Home</a>
-<a href="new_route"><i class="fas fa-plus"></i> New Route</a>
-<a href="driver_history"><i class="fas fa-history"></i> History</a>
-<a href="report_vehicle_issue"><i class="fas fa-exclamation-triangle"></i> Report Vehicle Issue</a>
-
-<a href="index"><i class="fas fa-sign-out-alt"></i> Logout</a>
-<br><br>
-<a href="#"><i class="fas fa-info-circle"></i> Report System Issue</a>
+  <a href="driver.php"><i class="fas fa-home"></i> Home</a>
+  <a href="new_route.php"><i class="fas fa-plus"></i> New Route</a>
+  <a href="driver_history.php"><i class="fas fa-history"></i> History</a>
+  <a href="report_vehicle_issue.php"><i class="fas fa-exclamation-triangle"></i> Report Vehicle Issue</a>
+  <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+  <br><br>
+  <a href="report_system_issue.php"><i class="fas fa-info-circle"></i> Report System Issue</a>
 
   <div class="sidebar-footer">
     All rights reserved © <span id="current-year"></span>
@@ -283,86 +360,93 @@ button:active {
 
 <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
-
-  <div class="container">
-    <div class="header">
-      <i class="fas fa-bars" onclick="toggleSidebar()"></i>
-
-      DRIVER DASHBOARD
-    </div>
-
-    <div class="profile-card">
-      <div class="profile-circle">CB</div>
-      <div class="profile-name">Christian Greg Bolastig</div>
-      <div class="profile-info">Employee ID: 2025-0703</div>
-      <div class="profile-info">Email: gregbolastig@gmail.com</div>
-    </div>
-
-    <div class="buttons">
-      <button class="btn new-route" onclick="window.location.href='new_route'"><i class="fas fa-plus"></i> New Route</button>
-      <button class="btn report-problem"   onclick="window.location.href='report_vehicle_issue'"><i class="fas fa-exclamation-triangle"></i> Report Problem</button>
-    </div>
-
-    <div class="section">
-      <div class="section-title">IN PROGRESS</div>
-      <div class="card">
-        <div class="card-header">
-          <span>Toyota Hiace</span>
-          <span>Time: 6:45 AM</span>
-        </div>
-        <div class="card-details">
-          Plate Number: ABG-6556<br />
-          Date: 07/07/2025<br />
-          Start odometer: 20172<br />
-          End odometer: -
-        </div>
-      </div>
-    </div>
-
-    <hr />
-
-    <div class="section">
-      <div class="section-title">ROUTE HISTORY</div>
-      <div class="card green">
-        <div class="card-header">
-          <span>Toyota Hiace</span>
-          <span>Time: 5:47 AM</span>
-        </div>
-        <div class="card-details">
-          <span class="completed">Completed</span>
-          Plate Number: ABG-6556<br />
-          Date: 07/05/2025<br />
-          Start odometer: 20022<br />
-          End odometer: 20169
-        </div>
-      </div>
-
-      <div class="card green">
-        <div class="card-header">
-          <span>Toyota Ace</span>
-          <span>Time: 6:45 AM</span>
-        </div>
-        <div class="card-details">
-          <span class="completed">Completed</span>
-          Plate Number: FBY-6556<br />
-          Date: 07/07/2025<br />
-          Start odometer: 19172<br />
-          End odometer: 19306
-        </div>
-      </div>
-    </div>
+<div class="container">
+  <div class="header">
+    <i class="fas fa-bars" onclick="toggleSidebar()"></i>
+    DRIVER DASHBOARD
   </div>
-  <script>
-  function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
-    sidebar.classList.toggle('active');
-    overlay.classList.toggle('active');
-  }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('current-year').textContent = new Date().getFullYear();
-  });
+  <div class="profile-card">
+    <div class="profile-circle">
+      <?php echo getDriverInitials($driver['FirstName'], $driver['LastName']); ?>
+    </div>
+    <div class="profile-name">
+      <?php echo htmlspecialchars($driver['FirstName'] . ' ' . 
+                                  ($driver['MiddleName'] ? $driver['MiddleName'] . ' ' : '') . 
+                                  $driver['LastName']); ?>
+    </div>
+    <div class="profile-info">Employee ID: <?php echo htmlspecialchars($driver['EmployeeNo']); ?></div>
+    <div class="profile-info">Email: <?php echo htmlspecialchars($driver['EmailAddress']); ?></div>
+  </div>
+
+  <div class="buttons">
+    <button class="btn new-route" onclick="window.location.href='new_route.php'">
+      <i class="fas fa-plus"></i> New Route
+    </button>
+    <button class="btn report-problem" onclick="window.location.href='report_vehicle_issue.php'">
+      <i class="fas fa-exclamation-triangle"></i> Report Problem
+    </button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">IN PROGRESS</div>
+    <?php if (count($current_routes) > 0): ?>
+      <?php foreach ($current_routes as $route): ?>
+        <div class="card">
+          <div class="card-header">
+            <span><?php echo htmlspecialchars($route['Model']); ?></span>
+            <span>Time: <?php echo formatDateTime($route['StartDateTime']); ?></span>
+          </div>
+          <div class="card-details">
+            Plate Number: <?php echo htmlspecialchars($route['PlateNumber']); ?><br />
+            Date: <?php echo formatDate($route['StartDateTime']); ?><br />
+            Start odometer: <?php echo number_format($route['StartOdometer'], 0); ?><br />
+            End odometer: -
+          </div>
+        </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="no-routes">No active routes</div>
+    <?php endif; ?>
+  </div>
+
+  <hr />
+
+  <div class="section">
+    <div class="section-title">ROUTE HISTORY</div>
+    <?php if (count($completed_routes) > 0): ?>
+      <?php foreach ($completed_routes as $route): ?>
+        <div class="card green">
+          <div class="card-header">
+            <span><?php echo htmlspecialchars($route['Model']); ?></span>
+            <span>Time: <?php echo formatDateTime($route['StartDateTime']); ?></span>
+          </div>
+          <div class="card-details">
+            <span class="completed">Completed</span>
+            Plate Number: <?php echo htmlspecialchars($route['PlateNumber']); ?><br />
+            Date: <?php echo formatDate($route['StartDateTime']); ?><br />
+            Start odometer: <?php echo number_format($route['StartOdometer'], 0); ?><br />
+            End odometer: <?php echo number_format($route['EndOdometer'], 0); ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="no-routes">No completed routes</div>
+    <?php endif; ?>
+  </div>
+</div>
+
+<script>
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('overlay');
+  sidebar.classList.toggle('active');
+  overlay.classList.toggle('active');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('current-year').textContent = new Date().getFullYear();
+});
 </script>
 
 </body>
