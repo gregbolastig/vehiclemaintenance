@@ -190,15 +190,16 @@ function formatDate($datetime) {
     }
 
     .card {
-      background-color: #ffa726;
-      color: #000;
+      background-color: #2667ffff;
+      color: white;
       padding: 10px;
       border-radius: 10px;
       margin-bottom: 5px;
     }
 
     .card.green {
-      background-color: #8ef58e;
+      background-color: #299149;
+      color: white;
     }
 
     .card-header {

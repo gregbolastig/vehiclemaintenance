@@ -1,208 +1,196 @@
 <?php
 session_start();
 
-// Database connection
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "VehicleManagementSystem";
+// Include database connection
+require_once('dbconnection.php');
 
-try {
-    $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
-    die("Connection failed: " . $e->getMessage());
-}
-
-// Check if user is logged in
+// Check if user is logged in as driver
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'driver') {
-    header("Location: index.php");
+    header("Location: login.php");
     exit();
 }
 
 $driver_id = $_SESSION['user_id'];
-
-// Fetch driver information
-$stmt = $pdo->prepare("SELECT FirstName, MiddleName, LastName, EmployeeNo, EmailAddress FROM Driver WHERE DriverID = ?");
-$stmt->execute([$driver_id]);
-$driver = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$driver) {
-    header("Location: index.php");
-    exit();
-}
-
-// Generate driver initials
-$initials = strtoupper(substr($driver['FirstName'], 0, 1) . substr($driver['LastName'], 0, 1));
-$full_name = $driver['FirstName'] . ' ' . $driver['MiddleName'] . ' ' . $driver['LastName'];
-
-// Handle form submission
 $success_message = '';
 $error_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $plate_number = strtoupper(trim($_POST['plate_number']));
-        $model = trim($_POST['model']);
-        $chassis_number = trim($_POST['chassis_number']);
-        $start_odometer = floatval($_POST['start_odometer']);
-        $remarks = trim($_POST['remarks']);
-        
-        // Vehicle inspection checklist
-        $checklist_items = [
-            'battery' => isset($_POST['battery']),
-            'lights' => isset($_POST['lights']),
-            'oil' => isset($_POST['oil']),
-            'water' => isset($_POST['water']),
-            'brakes' => isset($_POST['brakes']),
-            'air' => isset($_POST['air']),
-            'gas' => isset($_POST['gas']),
-            'engine' => isset($_POST['engine']),
-            'tires' => isset($_POST['tires']),
-            'self' => isset($_POST['self'])
-        ];
-        
-        // Check if at least one checklist item is checked
-        if (!array_filter($checklist_items)) {
-            throw new Exception("Please complete the vehicle inspection checklist before submitting.");
-        }
-        
-        // Validate required fields
-        if (empty($plate_number) || empty($model) || empty($chassis_number) || empty($start_odometer)) {
-            throw new Exception("Please fill in all required fields.");
-        }
-        
-        // Start transaction
-        $pdo->beginTransaction();
-        
-        // Check if vehicle exists, if not create it
-        $stmt = $pdo->prepare("SELECT VehicleID FROM Vehicle WHERE PlateNumber = ?");
-        $stmt->execute([$plate_number]);
-        $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$vehicle) {
-            // Create new vehicle
-            $stmt = $pdo->prepare("INSERT INTO Vehicle (PlateNumber, Model, ChassisNumber) VALUES (?, ?, ?)");
-            $stmt->execute([$plate_number, $model, $chassis_number]);
-            $vehicle_id = $pdo->lastInsertId();
-        } else {
-            $vehicle_id = $vehicle['VehicleID'];
-            
-            // Update vehicle details if needed
-            $stmt = $pdo->prepare("UPDATE Vehicle SET Model = ?, ChassisNumber = ? WHERE VehicleID = ?");
-            $stmt->execute([$model, $chassis_number, $vehicle_id]);
-        }
-        
-        // Check if driver has an active route
-        $stmt = $pdo->prepare("SELECT RouteID FROM Route WHERE DriverID = ? AND EndDateTime IS NULL");
-        $stmt->execute([$driver_id]);
-        $active_route = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($active_route) {
-            throw new Exception("You have an active route. Please end the current route before starting a new one.");
-        }
-        
-        // Create new route
-        $stmt = $pdo->prepare("INSERT INTO Route (DriverID, VehicleID, StartOdometer, StartDateTime) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$driver_id, $vehicle_id, $start_odometer]);
-        $route_id = $pdo->lastInsertId();
-        
-        // Add odometer reading
-        $stmt = $pdo->prepare("INSERT INTO OdometerReadings (VehicleID, OdometerReading) VALUES (?, ?)");
-        $stmt->execute([$vehicle_id, $start_odometer]);
-        
-        // Store checklist and remarks in session for potential future use
-        $_SESSION['last_checklist'] = $checklist_items;
-        $_SESSION['last_remarks'] = $remarks;
-        
-        $debugStmt = $pdo->prepare("DESCRIBE Vehicle");
-$debugStmt->execute();
-$columns = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
-error_log("Vehicle table columns: " . print_r($columns, true));
-
-// Also check what's actually in the database
-$debugStmt2 = $pdo->prepare("SELECT * FROM Vehicle WHERE PlateNumber = ? LIMIT 1");
-$debugStmt2->execute([$plate_number]);
-$debugVehicle = $debugStmt2->fetch(PDO::FETCH_ASSOC);
-error_log("Raw vehicle data from database: " . print_r($debugVehicle, true));
-          
-        $pdo->commit();
-        
-        $success_message = "Route started successfully! Route ID: " . $route_id;
-        
-    } catch (Exception $e) {
-        $pdo->rollback();
-        $error_message = $e->getMessage();
+// Get driver information
+try {
+    $stmt = $conn->prepare("SELECT * FROM Driver WHERE DriverID = ?");
+    $stmt->bind_param("i", $driver_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $driver = $result->fetch_assoc();
+    
+    if (!$driver) {
+        header("Location: login.php");
+        exit();
     }
+    
+    // Create initials for profile
+    $initials = strtoupper(substr($driver['FirstName'], 0, 1) . substr($driver['LastName'], 0, 1));
+    $full_name = $driver['FirstName'] . ' ' . $driver['LastName'];
+} catch(Exception $e) {
+    $error_message = "Error fetching driver information: " . $e->getMessage();
 }
 
-// Get vehicles for suggestions (optional)
-$stmt = $pdo->prepare("SELECT DISTINCT PlateNumber, Model FROM Vehicle ORDER BY PlateNumber");
-$stmt->execute();
-$vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Get all vehicles for suggestions
+$vehicles = [];
+try {
+    $stmt = $conn->prepare("SELECT PlateNumber, Model, ChassisNumber FROM Vehicle ORDER BY PlateNumber");
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $vehicles = $result->fetch_all(MYSQLI_ASSOC);
+} catch(Exception $e) {
+    $error_message = "Error fetching vehicles: " . $e->getMessage();
+}
 
-// Replace your existing GET vehicle endpoint with this corrected version:
-
+// Handle AJAX request for vehicle data
 if (isset($_GET['action']) && $_GET['action'] === 'get_vehicle' && isset($_GET['plate_number'])) {
-    header('Content-Type: application/json');
-    
-    $plate_number = strtoupper(trim($_GET['plate_number']));
-    
-    // Debug: Log the plate number being searched
-    error_log("Searching for plate number: " . $plate_number);
+    $plate_number = trim($_GET['plate_number']);
     
     try {
-        // Make sure we're selecting the correct column name from the database
-        $stmt = $pdo->prepare("SELECT PlateNumber, Model, ChassisNumber FROM Vehicle WHERE PlateNumber = ?");
-        $stmt->execute([$plate_number]);
-        $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // Debug: Log the query result
-        error_log("Query result: " . json_encode($vehicle));
+        $stmt = $conn->prepare("SELECT Model, ChassisNumber FROM Vehicle WHERE PlateNumber = ?");
+        $stmt->bind_param("s", $plate_number);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $vehicle = $result->fetch_assoc();
         
         if ($vehicle) {
-            // Debug: Check what we actually got from database
-            error_log("Raw vehicle data: " . print_r($vehicle, true));
-            
-            // Clean up the chassis number - remove any invalid data
-            $chassisNumber = $vehicle['ChassisNumber'] ?? '';
-            
-            // Check if chassis number looks like a date (invalid data)
-            if (preg_match('/^\d{4}-\d{2}-\d{2}/', $chassisNumber)) {
-                $chassisNumber = ''; // Clear invalid data
-            }
-            
-            $response = [
-                'success' => true,
-                'data' => [
-                    'PlateNumber' => $vehicle['PlateNumber'] ?? '',
-                    'Model' => $vehicle['Model'] ?? '',
-                    'ChassisNumber' => $chassisNumber
-                ]
-            ];
-            
-            error_log("Cleaned chassis number: " . $chassisNumber);
-            error_log("Sending response: " . json_encode($response));
-            echo json_encode($response);
+            echo json_encode(['success' => true, 'data' => $vehicle]);
         } else {
-            $response = [
-                'success' => false,
-                'message' => 'Vehicle not found'
-            ];
-            error_log("Vehicle not found for plate: " . $plate_number);
-            echo json_encode($response);
+            echo json_encode(['success' => false, 'message' => 'Vehicle not found']);
         }
-    } catch (Exception $e) {
-        $response = [
-            'success' => false,
-            'message' => 'Database error: ' . $e->getMessage()
-        ];
-        error_log("Database error: " . $e->getMessage());
-        echo json_encode($response);
+    } catch(Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     }
     exit();
 }
 
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        // Get form data
+        $plate_number = trim($_POST['plate_number']);
+        $model = trim($_POST['model']);
+        $chassis_number = trim($_POST['chassis_number']);
+        $start_odometer = floatval($_POST['start_odometer']);
+        $remarks = trim($_POST['remarks'] ?? '');
+        
+        // Get inspection checklist data
+        $inspection_battery = isset($_POST['battery']) ? 1 : 0;
+        $inspection_lights = isset($_POST['lights']) ? 1 : 0;
+        $inspection_oil = isset($_POST['oil']) ? 1 : 0;
+        $inspection_water = isset($_POST['water']) ? 1 : 0;
+        $inspection_brakes = isset($_POST['brakes']) ? 1 : 0;
+        $inspection_air = isset($_POST['air']) ? 1 : 0;
+        $inspection_gas = isset($_POST['gas']) ? 1 : 0;
+        $inspection_engine = isset($_POST['engine']) ? 1 : 0;
+        $inspection_tires = isset($_POST['tires']) ? 1 : 0;
+        $inspection_self = isset($_POST['self']) ? 1 : 0;
+        
+        // Validate required fields
+        if (empty($plate_number) || empty($model) || empty($chassis_number) || $start_odometer <= 0) {
+            throw new Exception("All required fields must be filled.");
+        }
+        
+        // Check if all inspection items are checked
+        $inspection_items = [
+            $inspection_battery, $inspection_lights, $inspection_oil, $inspection_water,
+            $inspection_brakes, $inspection_air, $inspection_gas, $inspection_engine,
+            $inspection_tires, $inspection_self
+        ];
+        
+        if (array_sum($inspection_items) < 10) {
+            throw new Exception("Please complete the full vehicle inspection checklist.");
+        }
+        
+        // Start transaction
+        $conn->autocommit(false);
+        
+        // Check if vehicle exists, if not create it
+        $stmt = $conn->prepare("SELECT VehicleID FROM Vehicle WHERE PlateNumber = ?");
+        $stmt->bind_param("s", $plate_number);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $vehicle = $result->fetch_assoc();
+        
+        if (!$vehicle) {
+            // Create new vehicle
+            $stmt = $conn->prepare("INSERT INTO Vehicle (PlateNumber, Model, ChassisNumber) VALUES (?, ?, ?)");
+            $stmt->bind_param("sss", $plate_number, $model, $chassis_number);
+            $stmt->execute();
+            $vehicle_id = $conn->insert_id;
+        } else {
+            $vehicle_id = $vehicle['VehicleID'];
+            
+            // Update vehicle information if needed
+            $stmt = $conn->prepare("UPDATE Vehicle SET Model = ?, ChassisNumber = ? WHERE VehicleID = ?");
+            $stmt->bind_param("ssi", $model, $chassis_number, $vehicle_id);
+            $stmt->execute();
+        }
+        
+        // Check if driver already has an active route
+        $stmt = $conn->prepare("SELECT RouteID FROM Route WHERE DriverID = ? AND EndDateTime IS NULL");
+        $stmt->bind_param("i", $driver_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $active_route = $result->fetch_assoc();
+        
+if ($active_route) {
+    // Display an alert and redirect
+    echo "<script>
+        alert('You already have an active route. Please end your current route before starting a new one.');
+        window.location.href = 'driver'; // Redirect to a relevant page
+    </script>";
+    exit();
+}
+        
+        // Insert new route
+        $stmt = $conn->prepare("
+            INSERT INTO Route (
+                DriverID, VehicleID, StartOdometer, StartDateTime,
+                InspectionBattery, InspectionLights, InspectionOil, InspectionWater,
+                InspectionBrakes, InspectionAir, InspectionGas, InspectionEngine,
+                InspectionTires, InspectionSelf, InspectionRemarks
+            ) VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        
+        $stmt->bind_param("iidiiiiiiiiiis", 
+            $driver_id, $vehicle_id, $start_odometer,
+            $inspection_battery, $inspection_lights, $inspection_oil, $inspection_water,
+            $inspection_brakes, $inspection_air, $inspection_gas, $inspection_engine,
+            $inspection_tires, $inspection_self, $remarks
+        );
+        $stmt->execute();
+        
+        $route_id = $conn->insert_id;
+        
+        // Insert odometer reading
+        $stmt = $conn->prepare("INSERT INTO OdometerReadings (VehicleID, OdometerReading) VALUES (?, ?)");
+        $stmt->bind_param("id", $vehicle_id, $start_odometer);
+        $stmt->execute();
+        
+        // Commit transaction
+        $conn->commit();
+        $conn->autocommit(true);
+        
+        $success_message = "Route started successfully! Route ID: " . $route_id;
+               echo "<script>
+            alert('" . addslashes($success_message) . "');
+            window.location.href = 'driver.php';
+        </script>";
+        exit();
+        // Store route ID in session for later use
+        $_SESSION['active_route_id'] = $route_id;
+        
+    } catch(Exception $e) {
+        // Rollback transaction on error
+        $conn->rollback();
+        $conn->autocommit(true);
+        $error_message = $e->getMessage();
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -215,6 +203,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_vehicle' && isset($_GET['
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     body {
       zoom:1.2;
@@ -617,7 +606,6 @@ i:hover {
   </div>
 </div>
       
-
 <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
   <div class="container">
@@ -646,7 +634,8 @@ i:hover {
       </div>
     <?php endif; ?>
 
-    <form method="POST" action="new_route.php" id="routeForm">
+<form method="POST" id="routeForm">
+
       <div class="section">
           <i class="fas fa-arrow-left" onclick="history.back(); return false;"></i>
         <div class="section-title">Vehicle Details</div>
@@ -663,7 +652,7 @@ i:hover {
         </div>
 
         <div class="form-group">
-          <label>Body no. *</label>
+          <label>Chassis no. *</label>
           <input type="text" name="chassis_number" id="chassis_number" placeholder="// enter chassis no." required />
         </div>
         
@@ -674,50 +663,50 @@ i:hover {
         
         <div class="form-group">
           <label>Time and Date (automatic)</label>
-          <input type="text" id="datetime" placeholder="// Automatic (uneditable)" disabled />
+          <input type="text" id="datetime" style="color: black;" placeholder="// Automatic (uneditable)" disabled />
         </div>
 <br>
 <div class="checklist-title">Vehicle Inspection Checklist</div>
         <div class="checklist-container">
           <div class="checklist">
             <div class="checkbox-item">
-              <input type="checkbox" name="battery" id="battery" />
+              <input type="checkbox" name="battery" id="battery" required/>
               <label for="battery"><i class="fas fa-battery-full"></i> Battery</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="lights" id="lights" />
+              <input type="checkbox" name="lights" id="lights" required/>
               <label for="lights"><i class="fas fa-lightbulb"></i> Lights</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="oil" id="oil" />
+              <input type="checkbox" name="oil" id="oil" required/>
               <label for="oil"><i class="fas fa-oil-can"></i> Oil</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="water" id="water" />
+              <input type="checkbox" name="water" id="water" required/>
               <label for="water"><i class="fas fa-tint"></i> Water</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="brakes" id="brakes" />
+              <input type="checkbox" name="brakes" id="brakes" required/>
               <label for="brakes"><i class="fas fa-hand-paper"></i> Brakes</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="air" id="air" />
+              <input type="checkbox" name="air" id="air" required/>
               <label for="air"><i class="fas fa-wind"></i> Air</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="gas" id="gas" />
+              <input type="checkbox" name="gas" id="gas" required/>
               <label for="gas"><i class="fas fa-gas-pump"></i> Gas</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="engine" id="engine" />
+              <input type="checkbox" name="engine" id="engine" required/>
               <label for="engine"><i class="fas fa-gears"></i> Engine</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="tires" id="tires" />
+              <input type="checkbox" name="tires" id="tires" required/>
               <label for="tires"><i class="fas fa-compact-disc"></i> Tires</label>
             </div>
             <div class="checkbox-item">
-              <input type="checkbox" name="self" id="self" />
+              <input type="checkbox" name="self" id="self" required/>
               <label for="self"><i class="fas fa-user-check"></i> Self</label>
             </div>
           </div>
@@ -742,6 +731,12 @@ i:hover {
     // Vehicle data for suggestions
     const vehicles = <?php echo json_encode($vehicles); ?>;
     
+    // Get references to the input fields (define them globally)
+    const plateInput = document.getElementById('plate_number');
+    const modelInput = document.getElementById('model');
+    const chassisInput = document.getElementById('chassis_number');
+    const suggestions = document.getElementById('plateSuggestions');
+    
     // Auto-populate current date and time
     const timeInput = document.getElementById('datetime');
     const now = new Date();
@@ -755,20 +750,82 @@ i:hover {
     });
     timeInput.value = formattedDateTime;
 
+    // Debounce function to prevent too many API calls
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // Function to fetch vehicle data from the server
+    function fetchVehicleData(plateNumber) {
+      console.log('Fetching data for plate:', plateNumber);
+      
+      fetch(`new_route.php?action=get_vehicle&plate_number=${encodeURIComponent(plateNumber)}`)
+        .then(response => {
+          console.log('Response status:', response.status);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Received data:', data);
+          
+          if (data.success && data.data) {
+            // Auto-populate the fields
+            modelInput.value = data.data.Model || '';
+            chassisInput.value = data.data.ChassisNumber || '';
+            
+            // Visual feedback
+            if (data.data.Model) {
+              modelInput.classList.add('auto-filled');
+              setTimeout(() => modelInput.classList.remove('auto-filled'), 3000);
+            }
+            
+            if (data.data.ChassisNumber) {
+              chassisInput.classList.add('auto-filled');
+              setTimeout(() => chassisInput.classList.remove('auto-filled'), 3000);
+            }
+            
+            console.log('Fields populated - Model:', modelInput.value, 'Chassis:', chassisInput.value);
+          } else {
+            console.log('Vehicle not found or invalid response:', data.message || 'Unknown error');
+            // Clear fields if vehicle not found
+            modelInput.value = '';
+            chassisInput.value = '';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching vehicle data:', error);
+        });
+    }
+
+    // Debounced version of fetchVehicleData
+    const debouncedFetchVehicleData = debounce(fetchVehicleData, 500);
+
     // Auto-suggestions for plate number
-    const plateInput = document.getElementById('plate_number');
-    const modelInput = document.getElementById('model');
-    const chassisInput = document.getElementById('chassis_number');
-    const suggestions = document.getElementById('plateSuggestions');
-
-    // Replace the existing plateInput.addEventListener('input', function() { ... }) with this:
-
     plateInput.addEventListener('input', function() {
       const value = this.value.toUpperCase();
       this.value = value; // Convert to uppercase as user types
       
       suggestions.innerHTML = '';
       
+      // Clear model and chassis if plate is empty
+      if (value.length === 0) {
+        modelInput.value = '';
+        chassisInput.value = '';
+        suggestions.style.display = 'none';
+        return;
+      }
+      
+      // Show suggestions
       if (value.length > 0) {
         const filtered = vehicles.filter(vehicle => 
           vehicle.PlateNumber.includes(value)
@@ -779,81 +836,36 @@ i:hover {
           filtered.forEach(vehicle => {
             const div = document.createElement('div');
             div.className = 'suggestion-item';
-            div.textContent = `${vehicle.PlateNumber} - ${vehicle.Model}`;
+            div.innerHTML = `
+              <strong>${vehicle.PlateNumber}</strong> - ${vehicle.Model}
+              <br><small style="color: #666;">Chassis: ${vehicle.ChassisNumber || 'Not available'}</small>
+            `;
             div.addEventListener('click', function() {
               plateInput.value = vehicle.PlateNumber;
               modelInput.value = vehicle.Model;
+              chassisInput.value = vehicle.ChassisNumber || '';
               suggestions.style.display = 'none';
-              // Auto-populate chassis number when suggestion is clicked
-              fetchVehicleData(vehicle.PlateNumber);
             });
             suggestions.appendChild(div);
           });
         } else {
           suggestions.style.display = 'none';
         }
-      } else {
-        suggestions.style.display = 'none';
+      }
+      
+      // Fetch vehicle data if plate number is long enough
+      if (value.length >= 3) {
+        debouncedFetchVehicleData(value);
       }
     });
 
-    // Add this new event listener for when plate number is typed/pasted directly
+    // Also check on blur (when user leaves the field)
     plateInput.addEventListener('blur', function() {
       const plateNumber = this.value.trim();
       if (plateNumber.length > 0) {
         fetchVehicleData(plateNumber);
       }
     });
-
-    // Replace your fetchVehicleData function with this debug version:
-
-    // Replace your existing fetchVehicleData function with this corrected version:
-
-function fetchVehicleData(plateNumber) {
-    console.log('Fetching data for plate:', plateNumber); // Debug log
-    
-    fetch(`new_route.php?action=get_vehicle&plate_number=${encodeURIComponent(plateNumber)}`)
-        .then(response => {
-            console.log('Response status:', response.status); // Debug log
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Received data:', data); // Debug log
-            
-            if (data.success && data.data) {
-                console.log('Vehicle data:', data.data); // Debug log
-                console.log('ChassisNumber from response:', data.data.ChassisNumber); // Debug log
-                
-                // Auto-populate the fields - make sure we're accessing the correct property
-                modelInput.value = data.data.Model || '';
-                chassisInput.value = data.data.ChassisNumber || '';
-                
-                // Optional: Show a subtle indication that data was loaded
-                modelInput.style.backgroundColor = '#f0f8ff';
-                chassisInput.style.backgroundColor = '#f0f8ff';
-                
-                // Remove the background color after 2 seconds
-                setTimeout(() => {
-                    modelInput.style.backgroundColor = '';
-                    chassisInput.style.backgroundColor = '';
-                }, 2000);
-                
-                console.log('Fields populated - Model:', modelInput.value, 'Chassis:', chassisInput.value);
-            } else {
-                console.log('Vehicle not found or invalid response:', data.message || 'Unknown error');
-                // If vehicle not found, clear the model and chassis fields
-                modelInput.value = '';
-                chassisInput.value = '';
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching vehicle data:', error);
-            // Don't clear fields on error - let user manually input
-        });
-}
 
     // Hide suggestions when clicking outside
     document.addEventListener('click', function(e) {
@@ -863,7 +875,7 @@ function fetchVehicleData(plateNumber) {
     });
 
     // Form validation
-    document.getElementById('routeForm').addEventListener('submit', function(e) {
+document.querySelector('form').addEventListener('submit', function(e) {
       const checkboxes = document.querySelectorAll('input[type="checkbox"]');
       const checkedItems = Array.from(checkboxes).filter(cb => cb.checked);
       

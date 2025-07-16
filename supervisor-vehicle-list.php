@@ -85,7 +85,6 @@ $count_stmt->execute();
 $total_records = $count_stmt->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_records / $records_per_page);
 
-// Get vehicles with latest odometer reading and active routes (filtered by location)
 $query = "
     SELECT 
         v.VehicleID,
@@ -93,6 +92,7 @@ $query = "
         v.Model,
         v.ChassisNumber,
         v.VehicleLocation,
+        v.RegistrationExpiration,
         v.CreatedAt,
         COALESCE(latest_odometer.OdometerReading, 0) as LatestOdometer,
         CASE 
@@ -164,16 +164,16 @@ $maintenance_result = $maintenance_stmt->get_result();
 $maintenance_stats = $maintenance_result->fetch_assoc();
 
 
-// Handle vehicle registration form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_vehicle'])) {
     $plate_number = trim($_POST['plate_number']);
     $model = trim($_POST['model']);
     $chassis_number = trim($_POST['chassis_number']);
+    $registration_expiration = trim($_POST['registration_expiration']);
     $initial_odometer = floatval($_POST['initial_odometer']);
     
     // Validate input
-    if (empty($plate_number) || empty($model) || empty($chassis_number)) {
-        $error_message = "All fields are required.";
+    if (empty($plate_number) || empty($model) || empty($chassis_number) || empty($registration_expiration)) {
+        $error_message = "All required fields must be filled.";
     } else {
         // Check if plate number or chassis number already exists
         $check_query = "SELECT VehicleID FROM Vehicle WHERE PlateNumber = ? OR ChassisNumber = ?";
@@ -185,10 +185,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_vehicle'])) 
         if ($check_result->num_rows > 0) {
             $error_message = "Vehicle with this plate number or chassis number already exists.";
         } else {
-            // Insert new vehicle
-            $insert_query = "INSERT INTO Vehicle (PlateNumber, Model, ChassisNumber, VehicleLocation) VALUES (?, ?, ?, ?)";
+            // Insert new vehicle WITH registration expiration
+            $insert_query = "INSERT INTO Vehicle (PlateNumber, Model, ChassisNumber, VehicleLocation, RegistrationExpiration) VALUES (?, ?, ?, ?, ?)";
             $insert_stmt = $conn->prepare($insert_query);
-            $insert_stmt->bind_param("ssss", $plate_number, $model, $chassis_number, $supervisor_location);
+            $insert_stmt->bind_param("sssss", $plate_number, $model, $chassis_number, $supervisor_location, $registration_expiration);
             
             if ($insert_stmt->execute()) {
                 $new_vehicle_id = $conn->insert_id;
@@ -1011,18 +1011,19 @@ $maintenance_stmt->close();
 
                 <div class="table-wrapper">
                     <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Plate Number</th>
-                                <th>Model</th>
-                                <th>Chassis Number</th>
-                                <th>Latest Odometer</th>
-                                <th>Status</th>
-                                <th>Current Driver</th>
-                                <th>Created Date</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
+                    <thead>
+                        <tr>
+                            <th>Plate Number</th>
+                            <th>Model</th>
+                            <th>Chassis Number</th>
+                            <th>Latest Odometer</th>
+                            <th>Registration Expiration</th>
+                            <th>Status</th>
+                            <th>Current Driver</th>
+                            <th>Created Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
                         <tbody>
                             <?php if ($vehicles->num_rows > 0): ?>
                                 <?php while ($vehicle = $vehicles->fetch_assoc()): ?>
@@ -1030,8 +1031,19 @@ $maintenance_stmt->close();
                                         <td class="vehicle-plate"><?php echo htmlspecialchars($vehicle['PlateNumber']); ?></td>
                                         <td><?php echo htmlspecialchars($vehicle['Model']); ?></td>
                                         <td><?php echo htmlspecialchars($vehicle['ChassisNumber']); ?></td>
-
                                         <td><?php echo number_format($vehicle['LatestOdometer']); ?> km</td>
+                                        <td>
+                                            <?php 
+                                            $exp_date = new DateTime($vehicle['RegistrationExpiration']);
+                                            $today = new DateTime();
+                                            $days_diff = $today->diff($exp_date)->days;
+                                            $is_expired = $today > $exp_date;
+                                            $is_expiring_soon = $days_diff <= 30 && !$is_expired;
+                                            ?>
+                                            <span class="registration-date <?php echo $is_expired ? 'expired' : ($is_expiring_soon ? 'expiring-soon' : ''); ?>">
+                                                <?php echo $exp_date->format('M d, Y'); ?>
+                                            </span>
+                                        </td>
                                         <td>
                                             <span class="status-badge <?php echo $vehicle['Status'] === 'Available' ? 'status-available' : 'status-in-use'; ?>">
                                                 <?php echo $vehicle['Status']; ?>
@@ -1204,6 +1216,10 @@ $maintenance_stmt->close();
                 <div class="form-group">
                     <label for="chassis_number">Chassis Number *</label>
                     <input type="text" id="chassis_number" name="chassis_number" required maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="registration_expiration">Registration Expiration Date *</label>
+                    <input type="date" id="registration_expiration" name="registration_expiration" required>
                 </div>
                 <div class="form-group">
                     <label for="initial_odometer">Initial Odometer Reading (km)</label>

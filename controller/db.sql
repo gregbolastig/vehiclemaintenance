@@ -41,7 +41,7 @@ CREATE TABLE Vehicle (
     VehicleID INT PRIMARY KEY AUTO_INCREMENT,
     PlateNumber VARCHAR(15) UNIQUE NOT NULL,
     Model VARCHAR(50) NOT NULL,
-    ChassisNumber VARCHAR(50) UNIQUE NOT NULL,
+    ChassisNumber VARCHAR(50) NOT NULL,
     CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -110,7 +110,8 @@ CREATE INDEX idx_maintenance_vehicle ON MaintenanceHistory(VehicleID);
 
 -- Add Location column to Vehicle table
 ALTER TABLE Vehicle 
-ADD COLUMN VehicleLocation VARCHAR(100) NOT NULL DEFAULT 'Boracay';
+ADD COLUMN VehicleLocation VARCHAR(100) NOT NULL DEFAULT 'Boracay',
+ADD COLUMN RegistrationExpiration VARCHAR(100) NOT NULL;
 
 -- Add SupervisorLocation column to Supervisor table
 ALTER TABLE Supervisor 
@@ -120,3 +121,16 @@ ADD COLUMN SupervisorLocation VARCHAR(100) NOT NULL DEFAULT 'Boracay';
 CREATE INDEX idx_vehicle_location ON Vehicle(VehicleLocation);
 CREATE INDEX idx_supervisor_location ON Supervisor(SupervisorLocation);
 
+
+ALTER TABLE Route 
+ADD COLUMN InspectionBattery BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionLights BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionOil BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionWater BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionBrakes BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionAir BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionGas BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionEngine BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionTires BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionSelf BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN InspectionRemarks TEXT;

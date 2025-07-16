@@ -2,7 +2,7 @@
 // Secure database connection using MySQLi with error handling
 
 $host = 'localhost';         // or your server address
-$dbname = 'VehicleManagementSystem';
+$dbname = 'Vehiclemanagementsystem';
 $username = 'root';
 $password = '';
 
